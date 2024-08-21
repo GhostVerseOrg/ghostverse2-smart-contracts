@@ -33,6 +33,8 @@ pub trait Ghostversemarketplace{
     /* Data mapper and data fetch logic */
 
     // We must map our data structs explicitly, we map NFTs by unique token+nonce pair for internal NFT listing data.
+    // NB! Mapper returns only the correctly added NFT-s to the marketplace, any NFTs directly spammed to the wallet are simply ignored.
+    // TODO: implement a method to remove NFTs from the wallet that are not listed/mapped in the marketplace.
     #[storage_mapper("listingDetails")]
     fn listing_details(&self) -> MapMapper<(TokenIdentifier, u64), NftListing<Self::Api>>;
 
@@ -94,7 +96,21 @@ pub trait Ghostversemarketplace{
         nft_nonce: u64,
         listing_amount: BigUint,
     ) -> SCResult<()> {
-        let creator_royalties_percentage = self.get_nft_info(&nft_token, nft_nonce).royalties;
+        // NB! Security double-fix, when we are in the middle of a transaction we look for the specified NFT in the current transaction's SC wallet state, we can do this as we are in the middle of a transaction after the transfer happened.
+        // When we see NFT listed on the current SC wallet (we're in the middle of a transaction), we can be sure that the NFT is owned by the SC wallet now and we need to proceed with the results.
+        let nft_info = self.get_nft_info(&nft_token, nft_nonce);
+
+        // Ref to doc: https://docs.multiversx.com/developers/developer-reference/sc-api-functions/#get_esdt_token_data
+        // """token_type is an enum, which can have one of the following values: pub enum EsdtTokenType { Fungible, NonFungible, SemiFungible, Meta, Invalid}>>""".
+        // """You will only receive basic distinctions for the token type, i.e. only Fungible and NonFungible (The smart contract has no way of telling the difference between non-fungible, semi-fungible and meta tokens)""".
+        // """Amount is the current owned balance of the account.""".
+        // We double verify that we have only 1 NFT token and it's non-fungible.
+        require!(
+            nft_info.amount == 1 && nft_info.token_type == EsdtTokenType::NonFungible,
+            "You can only sell single NFT objects!"
+        );
+
+        let creator_royalties_percentage = nft_info.royalties;
 
         require!(
             BigUint::from(MARKETPLACE_CUT) + &creator_royalties_percentage < PERCENTAGE_TOTAL,
@@ -261,6 +277,7 @@ pub trait Ghostversemarketplace{
     /* Helper functions */
 
     // Helper function to get NFT info from the chain.
+    // NB! it's hardcoded to look into NFT-s available at the current SC wallet, which makes logic invulnerable to attacks.
     fn get_nft_info(&self, nft_type: &TokenIdentifier, nft_nonce: u64) -> EsdtTokenData<Self::Api> {
         self.blockchain().get_esdt_token_data(
             &self.blockchain().get_sc_address(),
