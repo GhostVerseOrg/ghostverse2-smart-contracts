@@ -40,13 +40,13 @@ pub trait Ghostversemarketplace{
     #[view(getFullMarketplaceData)]
     fn get_full_marketplace_data(&self) 
     -> MultiValueManagedVec<NftListing<Self::Api>> {
-        let storageDetails = self.listing_details(); // Store results from SC storage in variable to extract iterator from it.
-        let storageIterator = storageDetails.values(); // Extract the iterator to loop over the storage values.
-        let mut listingsFound: MultiValueManagedVec<Self::Api, NftListing<Self::Api>> = MultiValueManagedVec::new();
+        let storage_details = self.listing_details(); // Store results from SC storage in variable to extract iterator from it.
+        let storage_iterator = storage_details.values(); // Extract the iterator to loop over the storage values.
+        let mut listings: MultiValueManagedVec<Self::Api, NftListing<Self::Api>> = MultiValueManagedVec::new();
 
         // Iterate through all available data and return everything.
-        for listing in storageIterator {
-            listingsFound.push(
+        for listing in storage_iterator {
+            listings.push(
                 NftListing{
                 nft_token: listing.nft_token,
                 nft_nonce: listing.nft_nonce,
@@ -57,7 +57,7 @@ pub trait Ghostversemarketplace{
             )
         }
 
-        return listingsFound;
+        return listings;
     }
 
     /* _________________________ */
@@ -106,28 +106,28 @@ pub trait Ghostversemarketplace{
         );
 
         // Retreive NFT data from SC storage.
-        let nftListing = self.listing_details().get(&(nft_token.clone(), nft_nonce.clone())).unwrap();
+        let nft_listing = self.listing_details().get(&(nft_token.clone(), nft_nonce.clone())).unwrap();
 
-        require!(nft_token == nftListing.nft_token, "Invalid token");
-        require!(nft_nonce == nftListing.nft_nonce, "Invalid nonce");
-        require!(payment_amount == nftListing.listing_amount, "Invalid amount");
+        require!(nft_token == nft_listing.nft_token, "Invalid token");
+        require!(nft_nonce == nft_listing.nft_nonce, "Invalid nonce");
+        require!(payment_amount == nft_listing.listing_amount, "Invalid amount");
 
         // Get current NFT royalties percentage.
         let creator_royalties_percentage = self.get_nft_info(&nft_token, nft_nonce).royalties;
 
         // Calculate marketplace 3% service fee.
-        let marketplace_service_fee = nftListing.listing_amount.clone() * MARKETPLACE_CUT / PERCENTAGE_TOTAL; 
+        let marketplace_service_fee = nft_listing.listing_amount.clone() * MARKETPLACE_CUT / PERCENTAGE_TOTAL; 
         // Calculate NFT creator royalties.
-        let royalties = BigUint::from(nftListing.listing_amount.clone()) * creator_royalties_percentage / BigUint::from(PERCENTAGE_TOTAL); 
+        let royalties = BigUint::from(nft_listing.listing_amount.clone()) * creator_royalties_percentage / BigUint::from(PERCENTAGE_TOTAL); 
         // Calculate seller's revenue.
-        let leftovermoney = nftListing.listing_amount.clone() - marketplace_service_fee.clone() - royalties.clone();
+        let leftovermoney = nft_listing.listing_amount.clone() - marketplace_service_fee.clone() - royalties.clone();
 
         // Get buyer's address to transfer NFT to.
         let caller = self.blockchain().get_caller();
         // Get marketplace smart contract owner address to transfer service fee to.
         let marketplace_owner = self.blockchain().get_owner_address();
         // Get original owner of the NFT to transfer revenue to.
-        let nft_owner = nftListing.nft_original_owner;
+        let nft_owner = nft_listing.nft_original_owner;
 
         // Fetch available NFT data on the SC wallet balance.
         let token_info = self.blockchain().get_esdt_token_data(
