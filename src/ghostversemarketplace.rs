@@ -144,13 +144,6 @@ pub trait Ghostversemarketplace{
         // Calculate seller's revenue.
         let leftovermoney = nft_listing.listing_amount.clone() - marketplace_service_fee.clone() - royalties.clone();
 
-        // Get buyer's address to transfer NFT to.
-        let caller = self.blockchain().get_caller();
-        // Get marketplace smart contract owner address to transfer service fee to.
-        let marketplace_owner = self.blockchain().get_owner_address();
-        // Get original owner of the NFT to transfer revenue to.
-        let nft_owner = nft_listing.nft_original_owner;
-
         // Fetch available NFT data on the SC wallet balance.
         let token_info = self.blockchain().get_esdt_token_data(
             &self.blockchain().get_sc_address(),
@@ -160,7 +153,7 @@ pub trait Ghostversemarketplace{
 
         // Transfer NFT to buyer.
         self.send().direct_esdt(
-            &caller,
+            &self.blockchain().get_caller(),
             &nft_token,
             nft_nonce,
             &BigUint::from(NFT_AMOUNT),
@@ -168,7 +161,7 @@ pub trait Ghostversemarketplace{
 
         // Transfer service fee to marketplace SC owner. 
         self.send().direct_egld(
-            &marketplace_owner,
+            &self.blockchain().get_owner_address(),
             &marketplace_service_fee,
         );
 
@@ -177,6 +170,10 @@ pub trait Ghostversemarketplace{
             &token_info.creator,
             &royalties,
         );
+
+
+        // Get original owner of the NFT to transfer revenue to, object type constraint here.
+        let nft_owner = nft_listing.nft_original_owner;
 
         // Transfer revenue to NFT seller.
         self.send().direct_egld(
