@@ -226,38 +226,39 @@ pub trait Ghostversemarketplace{
     }
 
 
-    // #[payable("*")] 
-    // #[endpoint(cancel_listing)]
-    // fn cancel_listing(
-    //     &self,
-    //     token_id: TokenIdentifier,
-    //     nonce: u64,
-    // ) -> SCResult<()> {
-    //     // Check the mapped value exists.
-    //     require!(
-    //         self.nft_detail().contains_key(&(token_id.clone(), nonce.clone())),
-    //         "Invalid NFT token, nonce or NFT was already sold");
+    #[payable("*")] 
+    #[endpoint(cancel_listing)]
+    fn cancel_listing(
+        &self,
+        nft_token: TokenIdentifier,
+        nft_nonce: u64,
+    ) -> SCResult<()> {
 
-    //     let caller = self.blockchain().get_caller();
-    //     // Retreive NFT data from SC storage.
-    //     let curNft = self.nft_detail().get(&(token_id.clone(), nonce.clone())).unwrap();
+        // Check if the mapped value exists.
+        require!(
+            self.listing_details().contains_key(&(nft_token.clone(), nft_nonce.clone())),
+            "Invalid NFT token or nonce or it was already sold"
+        );
 
-    //     require!(caller == curNft.owner, "You are not the owner of this token");
-    //     require!(token_id == curNft.token, "Invalid token");
-    //     require!(nonce == curNft.nonce, "Invalid nonce");
+        let caller = self.blockchain().get_caller();
+        // Retreive NFT data from SC storage.
+        let listing = self.listing_details().get(&(nft_token.clone(), nft_nonce.clone())).unwrap();
+
+        require!(caller == listing.nft_original_owner, "You are not the owner of this token");
+        require!(nft_token == listing.nft_token, "Invalid token");
+        require!(nft_nonce == listing.nft_nonce, "Invalid nonce");
         
-    //     self.nft_detail().remove(&(token_id.clone(), nonce.clone()));
+        self.listing_details().remove(&(nft_token.clone(), nft_nonce.clone()));
 
-    //     self.send().direct(
-    //         &caller,
-    //         &token_id,
-    //         nonce,
-    //         &BigUint::from(NFT_AMOUNT),
-    //         &[],
-    //     );
+        self.send().direct_esdt(
+            &caller,
+            &nft_token,
+            nft_nonce,
+            &BigUint::from(NFT_AMOUNT),
+        );
 
-    //     SCResult::Ok(())
-    // }
+        SCResult::Ok(())
+    }
 
     /* ________________ */
     /* Helper functions */
