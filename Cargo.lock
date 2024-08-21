@@ -320,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "ghostversemarketplace"
-version = "0.0.1"
+version = "1.0.0"
 dependencies = [
  "multiversx-sc",
  "multiversx-sc-scenario",

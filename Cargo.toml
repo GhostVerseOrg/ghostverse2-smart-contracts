@@ -1,6 +1,6 @@
 [package]
 name = "ghostversemarketplace"
-version = "0.0.1"
+version = "1.0.0"
 authors = ["Vladimir Rostok"]
 edition = "2021"
 publish = false

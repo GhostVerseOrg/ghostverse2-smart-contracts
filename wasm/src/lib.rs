@@ -6,9 +6,9 @@
 
 // Init:                                 1
 // Upgrade:                              1
-// Endpoints:                            2
+// Endpoints:                            6
 // Async Callback (empty):               1
-// Total number of exported functions:   5
+// Total number of exported functions:   9
 
 #![no_std]
 
@@ -21,7 +21,11 @@ multiversx_sc_wasm_adapter::endpoints! {
         init => init
         upgrade => upgrade
         getFullMarketplaceData => get_full_marketplace_data
+        get_listing => get_listing
         list_nft => list_nft
+        buy_nft => buy_nft
+        update_price => update_price
+        cancel_listing => cancel_listing
     )
 }
 
