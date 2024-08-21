@@ -5,23 +5,22 @@ multiversx_sc::derive_imports!();
 
 // Default values for the marketplace logic.
 // We sell single NFT objects only and take 3% marketplace fee and royalties to the creator.
-const nft_amount: u32 = 1; // We sell single NFT objects only.
-const marketplace_cut_percentage: u32 = 300; // We take 3% as fixed marketplace fee.
-const creator_royalties_percentage: u32 = 500; // NFT creator royalties, TODO, fetch this from the NFT properties.
-const percentage_total: u64 = 10000; // Total percentage for calculations.
+const NFT_AMOUNT: u32 = 1; // We sell single NFT objects only.
+const MARKETPLACE_CUT: u32 = 300; // 3%.
+pub const PERCENTAGE_TOTAL: u64 = 10_000; // 100%.
 
 // Store the NFT listing objects in the storage.
 #[derive(TypeAbi, TopEncode, TopDecode, ManagedVecItem, NestedEncode, NestedDecode)]
 pub struct NftListing<M: ManagedTypeApi> {
-    pub token: TokenIdentifier<M>, // Collection identifier, e.g. name + 6 random symbols, e.g. <GHOSTSET-531aff>-01.
-    pub nonce: u64, // nonce, id for NFT in collection, e.g. GHOSTSET-531aff-<01>.
-    pub original_owner: ManagedAddress<M>, // The owner of the NFT who this listing belongs to.
-    pub amount: BigUint<M>, // Price of the NFT listing.
-    pub publish_time: u64, // Store the publish data of the listing for sorting.
+    pub nft_token: TokenIdentifier<M>, // Collection identifier, e.g. name + 6 random symbols, e.g. <GHOSTSET-531aff>-01.
+    pub nft_nonce: u64, // nonce, id for NFT in collection, e.g. GHOSTSET-531aff-<01>.
+    pub nft_original_owner: ManagedAddress<M>, // The owner of the NFT who this listing belongs to.
+    pub listing_amount: BigUint<M>, // Price of the NFT listing.
+    pub listing_publish_time: u64, // Store the publish data of the listing for sorting.
 }
 
 #[multiversx_sc::contract]
-pub trait Ghostversemarketplace {
+pub trait Ghostversemarketplace{
     // We must have init function in order for SC to build.
     #[init]
     fn init(&self) {}
@@ -30,7 +29,7 @@ pub trait Ghostversemarketplace {
     #[upgrade]
     fn upgrade(&self) {}
 
-    /* __________________________ */
+    /* ________________________________ */
     /* Data mapper and data fetch logic */
 
     // We must map our data structs explicitly, we map NFTs by unique token+nonce pair for internal NFT listing data.
@@ -46,14 +45,14 @@ pub trait Ghostversemarketplace {
         let mut listingsFound: MultiValueManagedVec<Self::Api, NftListing<Self::Api>> = MultiValueManagedVec::new();
 
         // Iterate through all available data and return everything.
-        for nft in storageIterator {
+        for listing in storageIterator {
             listingsFound.push(
                 NftListing{
-                token: nft.token,
-                nonce: nft.nonce,
-                original_owner: nft.original_owner,
-                amount: nft.amount,
-                publish_time: nft.publish_time,
+                nft_token: listing.nft_token,
+                nft_nonce: listing.nft_nonce,
+                nft_original_owner: listing.nft_original_owner,
+                listing_amount: listing.listing_amount,
+                listing_publish_time: listing.listing_publish_time,
                 }
             )
         }
@@ -61,25 +60,35 @@ pub trait Ghostversemarketplace {
         return listingsFound;
     }
 
+    /* _________________________ */
+    /* Marketplace functionality */
 
-    // // owner-only endpoints
-    // #[payable("EGLD")]
-    // #[endpoint(list_nft)] // endpoint name
-    // fn list_nft( // list NFT e.g. TR11-531aff-01 for sale
-    //     &self,
-    //     token_id: TokenIdentifier, // collection identifier, e.g. name + 6 random symbols, e.g. TR11-531aff(-01)
-    //     nonce: u64, // nonce, e.g. id for NFT in collection, e.g. (TR11-531aff)-01
-    //     selling_price: BigUint, // e.g. 0.5 EGLD
-    // ) -> SCResult<()> {
-    //     self.nft_detail().insert((token_id.clone(), nonce.clone()), NftListing{
-    //         owner: self.blockchain().get_caller(),
-    //         token: token_id,
-    //         nonce: nonce,
-    //         amount: selling_price,
-    //     });
+    // List NFT for sale in the marketplace.
+    #[payable("*")]
+    #[endpoint(list_nft)]
+    fn list_nft(
+        &self,
+        nft_token: TokenIdentifier,
+        nft_nonce: u64,
+        listing_amount: BigUint,
+    ) -> SCResult<()> {
+        let creator_royalties_percentage = self.get_nft_info(&nft_token, nft_nonce).royalties;
 
-    //     SCResult::Ok(())
-    // }
+        require!(
+            BigUint::from(MARKETPLACE_CUT) + &creator_royalties_percentage < PERCENTAGE_TOTAL,
+            "Marketplace cut plus royalties exceeds 100%"
+        );
+
+        self.listing_details().insert((nft_token.clone(), nft_nonce.clone()), NftListing{
+            nft_token: nft_token,
+            nft_nonce: nft_nonce,
+            nft_original_owner: self.blockchain().get_caller(),
+            listing_amount: listing_amount,
+            listing_publish_time: self.blockchain().get_block_timestamp(),
+        });
+
+        SCResult::Ok(())
+    }
 
     // // endpoints
     // #[payable("EGLD")]
@@ -254,4 +263,16 @@ pub trait Ghostversemarketplace {
     //             ).into())
     //     }
     // }
+
+    /* ________________ */
+    /* Helper functions */
+
+    // Helper function to get NFT info from the chain.
+    fn get_nft_info(&self, nft_type: &TokenIdentifier, nft_nonce: u64) -> EsdtTokenData<Self::Api> {
+        self.blockchain().get_esdt_token_data(
+            &self.blockchain().get_sc_address(),
+            nft_type,
+            nft_nonce,
+        )
+    }
 }
