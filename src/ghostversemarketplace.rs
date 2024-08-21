@@ -66,20 +66,20 @@ pub trait Ghostversemarketplace{
         &self,
         nft_token: TokenIdentifier,
         nft_nonce: u64,
-    ) -> NftListing<Self::Api> {
+    ) -> OptionalValue<MultiValue5<ManagedAddress, TokenIdentifier, u64, BigUint, u64>> {
         require!(
             self.listing_details().contains_key(&(nft_token.clone(), nft_nonce.clone())),
             "Invalid NFT token or nonce or it was already sold"
         );
         
         let listing = self.listing_details().get(&(nft_token.clone(), nft_nonce.clone())).unwrap();
-        NftListing{
-            nft_token: listing.nft_token,
-            nft_nonce: listing.nft_nonce,
-            nft_original_owner: listing.nft_original_owner,
-            listing_amount: listing.listing_amount,
-            listing_publish_time: listing.listing_publish_time,
-            }
+        OptionalValue::Some((
+            listing.nft_original_owner,
+            listing.nft_token,
+            listing.nft_nonce,
+            listing.listing_amount,
+            listing.listing_publish_time,
+        ).into())
     }
 
     /* _________________________ */
