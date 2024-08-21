@@ -60,6 +60,28 @@ pub trait Ghostversemarketplace{
         return listings;
     }
 
+    // Get requested NFT listing data using token+nonce tuple as key.
+    #[view(get_listing)]
+    fn get_listing(
+        &self,
+        nft_token: TokenIdentifier,
+        nft_nonce: u64,
+    ) -> NftListing<Self::Api> {
+        require!(
+            self.listing_details().contains_key(&(nft_token.clone(), nft_nonce.clone())),
+            "Invalid NFT token or nonce or it was already sold"
+        );
+        
+        let listing = self.listing_details().get(&(nft_token.clone(), nft_nonce.clone())).unwrap();
+        NftListing{
+            nft_token: listing.nft_token,
+            nft_nonce: listing.nft_nonce,
+            nft_original_owner: listing.nft_original_owner,
+            listing_amount: listing.listing_amount,
+            listing_publish_time: listing.listing_publish_time,
+            }
+    }
+
     /* _________________________ */
     /* Marketplace functionality */
 
@@ -226,33 +248,6 @@ pub trait Ghostversemarketplace{
     //     );
 
     //     SCResult::Ok(())
-    // }
-
-    // Map NFT using some custom mapper identifier.
-    // Map NFT by unique token+nonce pair for NFT object.   
-    // #[storage_mapper("NftListing")]
-    // fn nft_detail(&self) -> MapMapper<(TokenIdentifier, u64), NftListing<Self::Api>>;
-
-    // #[allow(clippy::type_complexity)]
-    // #[view(get_listing)]
-    // fn get_listing(
-    //     &self,
-    //     token_id: TokenIdentifier,
-    //     nonce: u64,
-    // ) -> OptionalValue<MultiValue4<ManagedAddress, TokenIdentifier, u64, BigUint>> {
-    //     if !self.nft_detail().contains_key(&(token_id.clone(), nonce.clone())) {
-    //         // NFT was already sold
-    //         OptionalValue::None
-    //     } else {
-    //         // Retreive NFT data from SC storage.
-    //         let curNft = self.nft_detail().get(&(token_id.clone(), nonce.clone())).unwrap();
-    //         OptionalValue::Some((
-    //             curNft.owner,
-    //             curNft.token,
-    //             curNft.nonce,
-    //             curNft.amount,
-    //             ).into())
-    //     }
     // }
 
     /* ________________ */
