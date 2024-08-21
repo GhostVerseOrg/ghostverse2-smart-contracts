@@ -1,7 +1,5 @@
 #![no_std]
 
-
-#[allow(unused_imports)]
 multiversx_sc::imports!();
 multiversx_sc::derive_imports!();
 
@@ -19,32 +17,35 @@ pub struct NftListing<M: ManagedTypeApi> {
     pub nonce: u64, // nonce, id for NFT in collection, e.g. GHOSTSET-531aff-<01>.
     pub original_owner: ManagedAddress<M>, // The owner of the NFT who this listing belongs to.
     pub amount: BigUint<M>, // Price of the NFT listing.
-    pub publish_time: u64,
+    pub publish_time: u64, // Store the publish data of the listing for sorting.
 }
 
-/// An empty contract. To be used as a template when starting a new contract from scratch.
 #[multiversx_sc::contract]
 pub trait Ghostversemarketplace {
+    // We must have init function in order for SC to build.
     #[init]
     fn init(&self) {}
 
+    // We reserve the Upgrade function for later use.
     #[upgrade]
     fn upgrade(&self) {}
 
-    // Map NFT using some custom mapper identifier.
-    // Map NFT by unique token+nonce pair for NFT object.   
+    /* __________________________ */
+    /* Data mapper and data fetch logic */
+
+    // We must map our data structs explicitly, we map NFTs by unique token+nonce pair for internal NFT listing data.
     #[storage_mapper("listingDetails")]
     fn listing_details(&self) -> MapMapper<(TokenIdentifier, u64), NftListing<Self::Api>>;
 
-    // Get all NFT listings from SC memory.
-    // #[allow(clippy::type_complexity)]
+    // Get all NFT listings from SC memory, iterate over the storage and return all the data.
     #[view(getFullMarketplaceData)]
     fn get_full_marketplace_data(&self) 
     -> MultiValueManagedVec<NftListing<Self::Api>> {
-        let storageDetails = self.listing_details(); // store in a intermediate variable not dropping the results
-        let storageIterator = storageDetails.values(); // get iterator from the results retrieved above 
+        let storageDetails = self.listing_details(); // Store results from SC storage in variable to extract iterator from it.
+        let storageIterator = storageDetails.values(); // Extract the iterator to loop over the storage values.
         let mut listingsFound: MultiValueManagedVec<Self::Api, NftListing<Self::Api>> = MultiValueManagedVec::new();
 
+        // Iterate through all available data and return everything.
         for nft in storageIterator {
             listingsFound.push(
                 NftListing{
@@ -52,7 +53,7 @@ pub trait Ghostversemarketplace {
                 nonce: nft.nonce,
                 original_owner: nft.original_owner,
                 amount: nft.amount,
-                publish_time: self.blockchain().get_block_timestamp(),
+                publish_time: nft.publish_time,
                 }
             )
         }
