@@ -190,31 +190,40 @@ pub trait Ghostversemarketplace{
         SCResult::Ok(())
     }
 
-    // #[payable("*")] 
-    // #[endpoint(update_price)]
-    // fn update_price(
-    //     &self,
-    //     token_id: TokenIdentifier,
-    //     nonce: u64,
-    //     payment_amount: BigUint,    
-    // ) -> SCResult<()> {
-    //     let caller = self.blockchain().get_caller();
-    //     // Retreive NFT data from SC storage.
-    //     let curNft = self.nft_detail().get(&(token_id.clone(), nonce.clone())).unwrap();
+    #[payable("*")] 
+    #[endpoint(update_price)]
+    fn update_price(
+        &self,
+        nft_token: TokenIdentifier,
+        nft_nonce: u64,
+        listing_amount: BigUint,    
+    ) -> SCResult<()> {
+        // Check if the mapped value exists.
+        require!(
+            self.listing_details().contains_key(&(nft_token.clone(), nft_nonce.clone())),
+            "Invalid NFT token or nonce or it was already sold"
+        );
 
-    //     require!(caller == curNft.owner, "You are not the owner of this token");
-    //     require!(token_id == curNft.token, "Invalid token");
-    //     require!(nonce == curNft.nonce, "Invalid nonce");
+        // Retreive NFT data from SC storage.
+        let listing = self.listing_details().get(&(nft_token.clone(), nft_nonce.clone())).unwrap();
 
-    //     self.nft_detail().insert((token_id.clone(), nonce.clone()), NftListing{
-    //         owner: curNft.owner,
-    //         token: curNft.token,
-    //         nonce: curNft.nonce,
-    //         amount: payment_amount,
-    //     });
+        let caller = self.blockchain().get_caller();
 
-    //     SCResult::Ok(())
-    // }
+        // Verify the data.
+        require!(caller == listing.nft_original_owner, "You are not the owner of this token");
+        require!(nft_token == listing.nft_token, "Error in SC listing data");
+        require!(nft_nonce == listing.nft_nonce, "Error in SC listing data");
+
+        self.listing_details().insert((nft_token.clone(), nft_nonce.clone()), NftListing{
+            nft_token: listing.nft_token,
+            nft_nonce: listing.nft_nonce,
+            nft_original_owner: listing.nft_original_owner,
+            listing_amount: listing_amount,
+            listing_publish_time: listing.listing_publish_time,
+        });
+
+        SCResult::Ok(())
+    }
 
 
     // #[payable("*")] 
