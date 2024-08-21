@@ -90,92 +90,83 @@ pub trait Ghostversemarketplace{
         SCResult::Ok(())
     }
 
-    // // endpoints
-    // #[payable("EGLD")]
-    // #[allow(clippy::too_many_arguments)]
-    // #[endpoint(buy_nft)]
-    // fn buy_nft(
-    //     &self,
-    //     #[payment_amount] payment_amount: BigUint,
-    //     nft_token_id: TokenIdentifier,
-    //     nft_nonce: u64,
-    // ) -> SCResult<()> {
+    #[payable("EGLD")]
+    #[endpoint(buy_nft)]
+    fn buy_nft(
+        &self,
+        #[payment_amount] payment_amount: BigUint,
+        nft_token: TokenIdentifier,
+        nft_nonce: u64,
+    ) -> SCResult<()> {
 
-    //     // Check the mapped value exists.
-    //     require!(
-    //         self.nft_detail().contains_key(&(nft_token_id.clone(), nft_nonce.clone())),
-    //         "Invalid NFT token, nonce or NFT was already sold");
+        // Check if the mapped value exists.
+        require!(
+            self.listing_details().contains_key(&(nft_token.clone(), nft_nonce.clone())),
+            "Invalid NFT token or nonce or it was already sold"
+        );
 
-    //     // Retreive NFT data from SC storage.
-    //     let curNft = self.nft_detail().get(&(nft_token_id.clone(), nft_nonce.clone())).unwrap();
+        // Retreive NFT data from SC storage.
+        let nftListing = self.listing_details().get(&(nft_token.clone(), nft_nonce.clone())).unwrap();
 
-    //     require!(nft_token_id == curNft.token, "Invalid token used as payment");
-    //     require!(nft_nonce == curNft.nonce, "Invalid nonce for payment token");
-    //     require!(payment_amount == curNft.amount, "Invalid amount as payment");
+        require!(nft_token == nftListing.nft_token, "Invalid token");
+        require!(nft_nonce == nftListing.nft_nonce, "Invalid nonce");
+        require!(payment_amount == nftListing.listing_amount, "Invalid amount");
 
-    //     //___________________
-    //     // Calculacte marketplace 3% marketplace_service_fee.
-    //     let marketplace_service_fee = curNft.amount.clone() * MARKETPLACE_CUT / PERCENTAGE_TOTAL; 
-    //     // Calculacte NFT creator royalties.
-    //     let royalties = curNft.amount.clone() * ROYALTIES / PERCENTAGE_TOTAL; 
-    //     // Calculate seller's revenue.
-    //     let leftovermoney = curNft.amount.clone() - marketplace_service_fee.clone() - royalties.clone();
+        // Get current NFT royalties percentage.
+        let creator_royalties_percentage = self.get_nft_info(&nft_token, nft_nonce).royalties;
 
-    //     //___________________
-    //     // buyer's address
-    //     let caller = self.blockchain().get_caller();
-    //     // marketplace smart contract owner
-    //     let marketplace_owner = self.blockchain().get_owner_address();
-    //     // NFT owner (seller)
-    //     let nftOwner = curNft.owner;
+        // Calculate marketplace 3% service fee.
+        let marketplace_service_fee = nftListing.listing_amount.clone() * MARKETPLACE_CUT / PERCENTAGE_TOTAL; 
+        // Calculate NFT creator royalties.
+        let royalties = BigUint::from(nftListing.listing_amount.clone()) * creator_royalties_percentage / BigUint::from(PERCENTAGE_TOTAL); 
+        // Calculate seller's revenue.
+        let leftovermoney = nftListing.listing_amount.clone() - marketplace_service_fee.clone() - royalties.clone();
 
-    //     //___________________
-    //     // fetch info from NFT that is on balance of smart contract now.
-    //     let scAddress = self.blockchain().get_sc_address();
-    //     let tokenIfo = self.blockchain().get_esdt_token_data(&scAddress, &nft_token_id.clone(), nft_nonce.clone());
+        // Get buyer's address to transfer NFT to.
+        let caller = self.blockchain().get_caller();
+        // Get marketplace smart contract owner address to transfer service fee to.
+        let marketplace_owner = self.blockchain().get_owner_address();
+        // Get original owner of the NFT to transfer revenue to.
+        let nft_owner = nftListing.nft_original_owner;
 
-    //     //___________________
-    //     // send NFT to buyer
-    //     self.send().direct(
-    //         &caller,
-    //         &nft_token_id,
-    //         nft_nonce,
-    //         &BigUint::from(NFT_AMOUNT),
-    //         &[],
-    //     );
+        // Fetch available NFT data on the SC wallet balance.
+        let token_info = self.blockchain().get_esdt_token_data(
+            &self.blockchain().get_sc_address(),
+            &nft_token.clone(),
+            nft_nonce.clone()
+        );
 
-    //     // send marketplace fee to marketplace owner
-    //     self.send().direct(
-    //         &marketplace_owner,
-    //         &TokenIdentifier::egld(),
-    //         0,
-    //         &marketplace_service_fee,
-    //         &[],
-    //     );
+        // Transfer NFT to buyer.
+        self.send().direct_esdt(
+            &caller,
+            &nft_token,
+            nft_nonce,
+            &BigUint::from(NFT_AMOUNT),
+        );
 
-    //     // send royalties to NFT creator
-    //         self.send().direct(
-    //         &tokenIfo.creator,
-    //         &TokenIdentifier::egld(),
-    //         0,
-    //         &royalties,
-    //         &[],
-    //     );
+        // Transfer service fee to marketplace SC owner. 
+        self.send().direct_egld(
+            &marketplace_owner,
+            &marketplace_service_fee,
+        );
 
-    //         // send revenue to NFT seller
-    //         self.send().direct(
-    //         &nftOwner,
-    //         &TokenIdentifier::egld(),
-    //         0,
-    //         &leftovermoney,
-    //         &[],
-    //     );
+        // Transfer royalties to original NFT creator.
+        self.send().direct_egld(
+            &token_info.creator,
+            &royalties,
+        );
 
-    //     // Clear NFT storage data after it's sold.
-    //     self.nft_detail().remove(&(nft_token_id.clone(), nft_nonce.clone()));
+        // Transfer revenue to NFT seller.
+        self.send().direct_egld(
+            &nft_owner,
+            &leftovermoney,
+        );
 
-    //     SCResult::Ok(())
-    // }
+        // Remove listing details from the memory after the deal is done.
+        self.listing_details().remove(&(nft_token.clone(), nft_nonce.clone()));
+
+        SCResult::Ok(())
+    }
 
     // #[payable("*")] 
     // #[endpoint(update_price)]
